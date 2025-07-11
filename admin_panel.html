@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Panel</title>
+
+  <!-- --- Firebase SDK --- -->
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background-colcoor: #1a1a1a;
+      color: #fff;
+    }
+    h1, h2, h3 {
+      color: orange;
+      text-align: center;
+    }
+    .container {
+        max-width: 700px;
+        margin: 0 auto;
+    }
+    .modal {
+      display: flex;
+      position: fixed;
+      z-index: 9999;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.8);
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background-color: #222;
+      padding: 30px;
+      border-radius: 10px;
+      width: 90%;
+      max-width: 350px;
+      text-align: center;
+    }
+    #passwordModal input, #passwordModal button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 15px;
+      box-sizing: border-box;
+      border-radius: 6px;
+    }
+    #passwordModal input {
+        background-color: #333;
+        color: white;
+        border: 1px solid #444;
+    }
+    #passwordModal button {
+      background-color: orange; color: black; font-weight: bold;
+      border: none; cursor: pointer; font-size: 16px;
+    }
+    #admin-section { display: none; }
+    #admin-form {
+      background-color: #222; padding: 20px;
+      border-radius: 10px; margin: 20px auto;
+    }
+    #admin-form input, #admin-form select, #admin-form label {
+      width: 100%; padding: 10px; margin: 10px 0;
+      border: 1px solid #444; background: #333;
+      color: white; border-radius: 5px; box-sizing: border-box;
+    }
+    #admin-form label {
+        background: none; border: none; padding: 0; margin-bottom: -5px;
+    }
+    #admin-form input[type="file"] { padding: 5px; }
+    #image-preview {
+        max-width: 120px; max-height: 180px; margin: 10px auto;
+        display: none; border-radius: 8px; border: 2px solid orange;
+    }
+    #admin-form button {
+      width: 100%; padding: 12px; background-color: orange; color: black;
+      font-weight: bold; border: none; border-radius: 5px;
+      cursor: pointer; margin-top: 10px; font-size: 16px;
+    }
+    .movie-list { margin-top: 30px; }
+    .movie-item {
+        background-color: #222; padding: 15px; margin-bottom: 10px;
+        border-radius: 8px; display: flex;
+        justify-content: space-between; align-items: center; flex-wrap: wrap;
+    }
+    .movie-details { flex-grow: 1; }
+    .movie-details span { font-size: 18px; }
+    .movie-views { font-size: 12px; color: #ccc; margin-top: 5px; }
+    .movie-views b { color: orange; }
+    .delete-btn {
+        background-color: #d9534f; color: white; border: none;
+        border-radius: 6px; padding: 8px 12px; font-size: 14px;
+        cursor: pointer; margin-left: 15px;
+    }
+    /* --- Stats Dashboard Styles --- */
+    #stats-dashboard {
+        display: flex;
+        justify-content: space-around;
+        background-color: #222;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 30px;
+        text-align: center;
+    }
+    .stat-card {
+        color: white;
+    }
+    .stat-card h3 {
+        margin: 0 0 10px 0;
+        font-size: 18px;
+        color: #aaa;
+    }
+    .stat-card p {
+        margin: 0;
+        font-size: 28px;
+        font-weight: bold;
+        color: orange;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="passwordModal" class="modal">
+    <div class="modal-content">
+      <h2>🔐 Admin Login</h2>
+      <input type="password" id="adminPassword" placeholder="Enter Admin Password">
+      <button onclick="verifyPassword()">Login</button>
+    </div>
+  </div>
+
+  <div id="admin-section" class="container">
+    <h1>🎬 Admin Panel</h1>
+
+    <!-- --- Stats Dashboard --- -->
+    <div id="stats-dashboard">
+        <div class="stat-card">
+            <h3>Total Views</h3>
+            <p id="total-views-stat">0</p>
+        </div>
+        <div class="stat-card">
+            <h3>Today's Views</h3>
+            <p id="today-views-stat">0</p>
+        </div>
+    </div>
+
+    <div id="admin-form">
+      <h3>➕ Add New Movie</h3>
+      <input type="text" id="movie-title" placeholder="Movie Title">
+      <label for="movie-image-upload">Movie Image:</label>
+      <input type="file" id="movie-image-upload" accept="image/*">
+      <img id="image-preview" src="" alt="Image Preview">
+      <input type="text" id="movie-link" placeholder="Download Link">
+      <select id="movie-category">
+        <option value="Action">Action</option>
+        <option value="Drama">Drama</option>
+        <option value="Horror">Horror</option>
+        <option value="Comedy">Comedy</option>
+        <option value="Romance">Romance</option>
+      </select>
+      <button onclick="addMovie()">Add Movie</button>
+    </div>
+
+    <div class="movie-list">
+        <h2>📋 Movie List</h2>
+        <div id="movie-list-container"></div>
+    </div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyD-tlrPK8s9h87PVqtvprBy_phcCqONLeU",
+      authDomain: "my-movie-81a4b.firebaseapp.com",
+      databaseURL: "https://my-movie-81a4b-default-rtdb.firebaseio.com",
+      projectId: "my-movie-81a4b",
+      storageBucket: "my-movie-81a4b.firebasestorage.app",
+      messagingSenderId: "249876555391",
+      appId: "1:249876555391:web:81f3ad52805b0aa314c14a",
+      measurementId: "G-RHPWTHQHS2"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+    const moviesRef = database.ref('movies');
+
+    const passwordModal = document.getElementById('passwordModal');
+    const adminSection = document.getElementById('admin-section');
+    const imageUploadInput = document.getElementById('movie-image-upload');
+    const imagePreview = document.getElementById('image-preview');
+    const movieContainer = document.getElementById('movie-list-container');
+
+    function verifyPassword() {
+      const password = document.getElementById('adminPassword').value;
+      if (password === "raBBiM8107z") {
+        passwordModal.style.display = 'none';
+        adminSection.style.display = 'block';
+        loadMoviesForAdmin();
+      } else {
+        alert("❌ Incorrect Password!");
+      }
+      document.getElementById('adminPassword').value = '';
+    }
+
+    imageUploadInput.addEventListener('change', function() {
+        if (this.files[0]) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                imagePreview.src = e.target.result;
+                imagePreview.style.display = 'block';
+            }
+            reader.readAsDataURL(this.files[0]);
+        } else {
+            imagePreview.style.display = 'none';
+        }
+    });
+
+    function addMovie() {
+      const title = document.getElementById('movie-title').value;
+      const image = imagePreview.src;
+      const link = document.getElementById('movie-link').value;
+      const category = document.getElementById('movie-category').value;
+
+      if (title && imagePreview.src && link && category) {
+        moviesRef.push({
+            title, image, link, category,
+            totalViews: 0, todayViews: 0,
+            lastResetDate: new Date().toISOString().slice(0, 10)
+        });
+        document.getElementById('admin-form').reset();
+        imagePreview.style.display = 'none';
+        alert('✅ Movie added successfully!');
+      } else {
+        alert("⚠️ Please fill in all fields and upload an image.");
+      }
+    }
+
+    function loadMoviesForAdmin() {
+        moviesRef.on('value', (snapshot) => {
+            movieContainer.innerHTML = ''; 
+            let overallTotalViews = 0;
+            let overallTodayViews = 0;
+            const today = new Date().toISOString().slice(0, 10);
+
+            const movies = snapshot.val();
+            if (movies) {
+                Object.keys(movies).forEach(key => {
+                    const movieData = movies[key];
+
+                    const totalViews = movieData.totalViews || 0;
+                    const todayViews = (movieData.lastResetDate === today) ? (movieData.todayViews || 0) : 0;
+
+                    overallTotalViews += totalViews;
+                    overallTodayViews += todayViews;
+
+                    const movieItem = document.createElement('div');
+                    movieItem.className = 'movie-item';
+                    movieItem.innerHTML = `
+                        <div class="movie-details">
+                            <span>${movieData.title}</span>
+                            <div class="movie-views">
+                                Today: <b>${todayViews}</b> | Total: <b>${totalViews}</b>
+                            </div>
+                        </div>
+                        <button class="delete-btn" onclick="deleteMovie('${key}', '${movieData.title}')">Delete</button>
+                    `;
+                    movieContainer.appendChild(movieItem);
+                });
+            } else {
+                movieContainer.innerHTML = '<p>No movies found.</p>';
+            }
+            document.getElementById('total-views-stat').innerText = overallTotalViews;
+            document.getElementById('today-views-stat').innerText = overallTodayViews;
+        });
+    }
+
+    function deleteMovie(key, title) {
+        if (confirm(`Are you sure you want to delete "${title}"?`)) {
+            database.ref('movies/' + key).remove()
+              .then(() => alert('🗑️ Movie deleted successfully!'))
+              .catch(err => alert('Error: ' + err.message));
+        }
+    }
+  </script>
+</body>
+</html>
